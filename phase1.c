@@ -124,6 +124,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     int procSlot = -1;
     int process_status_register = USLOSS_PsrGet();
     struct psrBits current_psr_status = (struct psrBits)(USLOSS_PsrGet());
+    struct procPtr proc_to_fill = NULL;
 
 
     // add debugging
@@ -153,22 +154,24 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
 
 
-    // find an empty slot in the process table
-    for (int i = 0; i < MAXPROC; i++) {
-        procStruct current_process_slot = ProcTable[i];
-
-        if (current_process_slot.status == UNUSED) {
-            procSlot = i;
+    // find an empty slot in the process table, and change PID
+    for (int i = 0; i < 50; i++) {
+        
+        if (ProcTable[nextPid % 50].status == UNUSED) {
+            procSlot = nextPid % 50;
             break;
         }
-    }
 
+        nextPid++;
+    }
 
     // check if table is full
     if (procSlot == -1) {
-        USLOSS_Console("fork1(): Process table full. Returning -1\n");
+        USLOSS_Console("fork1(): Process table full. Returning -1.\n");
         return -1;
     }
+
+    proc_to_fill = &ProcTable[procSlot];
 
 
     // fill-in entry in process table */
@@ -179,42 +182,50 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     
 
     // copy in name of process into process, and argument
-    strcpy(ProcTable[procSlot].name, name);
-    ProcTable[procSlot].startFunc = startFunc;
+    strcpy(proc_to_fill->name, name);
+    proc_to_fill->startFunc = startFunc;
     
     if (arg == NULL) {
-        ProcTable[procSlot].startArg[0] = '\0';
+        proc_to_fill->startArg[0] = '\0';
     }
     else if (strlen(arg) >= (MAXARG - 1)) {
         USLOSS_Console("fork1(): argument too long.  Halting...\n");
         USLOSS_Halt(1);
     }
     else {
-        strcpy(ProcTable[procSlot].startArg, arg);
+        strcpy(proc_to_fill->startArg, arg);
     }
 
     
-    // change pid number, add new stack space
-    ProcTable[procSlot].pid = nextPid;
-    nextPid = (nextPid+1) % 50;
-
+    // create new stack space
     char *new_stack = malloc(sizeof(char) * stacksize);
-    if
+    if (new_stack == NULL) {
+        USLOSS_Console("fork1(): Error when allocating stack space.\n");
+        USLOSS_Halt(1);
+    }
 
-    ProcTable[procSlot].stack = new_stack;
+    proc_to_fill->stack = new_stack;
+
+
+    // save the start function, arg, priority,
+    strcpy(proc_to_fill->startArg, arg);
+    proc_to_fill->startFunc = startFunc;
+    proc_to_fill->priority = priority;
+    proc_to_fill->stackSize = stacksize;
+    proc_to_fill->status = READY;
+
 
 
 
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
-
-    USLOSS_ContextInit(&(ProcTable[procSlot].state), USLOSS_PsrGet(),
-                       ProcTable[procSlot].stack,
-                       ProcTable[procSlot].stackSize,
+    USLOSS_ContextInit(&(proc_to_fill->state), USLOSS_PsrGet(),
+                       proc_to_fill->stack,
+                       proc_to_fill->stackSize,
                        launch);
 
     // for future phase(s)
-    p1_fork(ProcTable[procSlot].pid);
+    p1_fork(proc_to_fill->pid);
 
     // More stuff to do here...
 
