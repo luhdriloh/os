@@ -123,6 +123,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 {
     int procSlot = -1;
     int process_status_register = USLOSS_PsrGet();
+    struct psrBits current_psr_status = (struct psrBits)(USLOSS_PsrGet());
 
 
     // add debugging
@@ -131,8 +132,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
 
 
-    // test if in kernel mode; halt if in user mode
-    if (process_status_register & USLOSS_PSR_CURRENT_MODE == 0) {
+    // test if in kernel mode, halt if in user mode
+    if (current_psr_status.curMode == 0) {
         USLOSS_Console("fork1(): Processor is in user mode. Halting...\n")
         USLOSS_Halt(1);
     }
@@ -140,14 +141,35 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // Return if stack size is too small
     if (stacksize < USLOSS_MIN_STACK) {
-        USLOSS_Console("fork1(): Stacksize is too small. Halting...\n")
+        USLOSS_Console("fork1(): Stacksize is too small. Returning -2\n");
         return -2;
     }
 
 
+    // check if name, startFunc and priorities are valid
+    if (name == NULL || startFunc == NULL || priority < 1 || priority > 6) {
+        USLOSS_Console("fork1(): Stuff was null. Returning -1\n");
+        return -1;
+    }
+
+
     // find an empty slot in the process table
-    // TODO process table up above ProcTable
-    
+    for (int i = 0; i < MAXPROC; i++) {
+        procStruct current_process_slot = ProcTable[i];
+
+        if (current_process_slot.status == UNUSED) {
+            procSlot = i;
+            break;
+        }
+    }
+
+
+    // check if table is full
+    if (procSlot == -1) {
+        USLOSS_Console("fork1(): Process table full. Returning -1\n");
+        return -1;
+    }
+
 
     // fill-in entry in process table */
     if (strlen(name) >= (MAXNAME - 1)) {
@@ -155,6 +177,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Halt(1);
     }
     
+
+    // copy in name of process into process, and argument
     strcpy(ProcTable[procSlot].name, name);
     ProcTable[procSlot].startFunc = startFunc;
     
@@ -168,6 +192,18 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     else {
         strcpy(ProcTable[procSlot].startArg, arg);
     }
+
+    
+    // change pid number, add new stack space
+    ProcTable[procSlot].pid = nextPid;
+    nextPid = (nextPid+1) % 50;
+
+    char *new_stack = malloc(sizeof(char) * stacksize);
+    if
+
+    ProcTable[procSlot].stack = new_stack;
+
+
 
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)

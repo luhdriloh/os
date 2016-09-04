@@ -37,11 +37,11 @@ union psrValues {
 /* Some useful constants.  Add more as needed... */
 
 /* Status of Process */
+#define UNUSED 0
 #define READY 1
 #define BLOCKED 2
 #define RUNNING 3
 #define QUIT 4
-#define DONE 5
 
 #define NO_CURRENT_PROCESS NULL
 #define MINPRIORITY 5
