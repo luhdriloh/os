@@ -215,14 +215,26 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     proc_to_fill->status = READY;
 
 
-
-
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
     USLOSS_ContextInit(&(proc_to_fill->state), USLOSS_PsrGet(),
                        proc_to_fill->stack,
                        proc_to_fill->stackSize,
                        launch);
+
+
+    // add child information to the parent
+    if (Current->childProcPtr != NULL) {
+        procPtr current_proc = Current->childProcPtr;
+
+        while (current_proc->nextSiblingPtr != NULL) {
+            current_proc = current_proc->nextSiblingPtr;
+        }
+        current_proc->nextSiblingPtr = proc_to_fill;
+    }
+    else {
+        Current->childProcPtr = proc_to_fill;
+    }
 
     // for future phase(s)
     p1_fork(proc_to_fill->pid);
