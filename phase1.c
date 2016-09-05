@@ -31,7 +31,7 @@ int debugflag = 1;
 procStruct ProcTable[MAXPROC];
 
 // Process lists
-static procPtr ReadyList;
+static procPtr ReadyList[AMOUNTPRIORITIES];
 
 // current process ID
 procPtr Current;
@@ -60,9 +60,9 @@ void startup()
     // Initialize the Ready list, etc.
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing the Ready list\n");
-    ReadyList = NULL;
 
     // Initialize the clock interrupt handler
+    // 
 
     // startup a sentinel process
     if (DEBUG && debugflag)
@@ -122,9 +122,10 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
     int procSlot = -1;
-    int process_status_register = USLOSS_PsrGet();
-    struct psrBits current_psr_status = (struct psrBits)(USLOSS_PsrGet());
-    struct procPtr proc_to_fill = NULL;
+    procPtr new_process = NULL;
+    union psrValues current_psr_status;
+
+    current_psr_status.integerPart = USLOSS_PsrGet();
 
 
     // add debugging
@@ -134,8 +135,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
 
     // test if in kernel mode, halt if in user mode
-    if (current_psr_status.curMode == 0) {
-        USLOSS_Console("fork1(): Processor is in user mode. Halting...\n")
+    if (current_psr_status.bits.curMode == 0) {
+        USLOSS_Console("fork1(): Processor is in user mode. Halting...\n");
         USLOSS_Halt(1);
     }
 
@@ -171,8 +172,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         return -1;
     }
 
-    proc_to_fill = &ProcTable[procSlot];
-
+    new_process = &ProcTable[procSlot];
 
     // fill-in entry in process table */
     if (strlen(name) >= (MAXNAME - 1)) {
@@ -182,18 +182,18 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     
 
     // copy in name of process into process, and argument
-    strcpy(proc_to_fill->name, name);
-    proc_to_fill->startFunc = startFunc;
+    strcpy(new_process->name, name);
+    new_process->startFunc = startFunc;
     
     if (arg == NULL) {
-        proc_to_fill->startArg[0] = '\0';
+        new_process->startArg[0] = '\0';
     }
     else if (strlen(arg) >= (MAXARG - 1)) {
         USLOSS_Console("fork1(): argument too long.  Halting...\n");
         USLOSS_Halt(1);
     }
     else {
-        strcpy(proc_to_fill->startArg, arg);
+        strcpy(new_process->startArg, arg);
     }
 
     
@@ -204,22 +204,22 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Halt(1);
     }
 
-    proc_to_fill->stack = new_stack;
+    new_process->stack = new_stack;
 
 
     // save the start function, arg, priority,
-    strcpy(proc_to_fill->startArg, arg);
-    proc_to_fill->startFunc = startFunc;
-    proc_to_fill->priority = priority;
-    proc_to_fill->stackSize = stacksize;
-    proc_to_fill->status = READY;
+    strcpy(new_process->startArg, arg);
+    new_process->startFunc = startFunc;
+    new_process->priority = priority;
+    new_process->stackSize = stacksize;
+    new_process->status = READY;
 
 
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
-    USLOSS_ContextInit(&(proc_to_fill->state), USLOSS_PsrGet(),
-                       proc_to_fill->stack,
-                       proc_to_fill->stackSize,
+    USLOSS_ContextInit(&(new_process->state), USLOSS_PsrGet(),
+                       new_process->stack,
+                       new_process->stackSize,
                        launch);
 
 
@@ -230,14 +230,29 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         while (current_proc->nextSiblingPtr != NULL) {
             current_proc = current_proc->nextSiblingPtr;
         }
-        current_proc->nextSiblingPtr = proc_to_fill;
+        current_proc->nextSiblingPtr = new_process;
     }
     else {
-        Current->childProcPtr = proc_to_fill;
+        Current->childProcPtr = new_process;
     }
 
+
+    // insert into ready list
+    procPtr temp_process = ReadyList[priority];
+
+    if (temp_process != NULL) {
+        while (temp_process->nextProcPtr != NULL) {
+            temp_process = temp_process->nextProcPtr; 
+        }
+    }
+
+    temp_process = new_process;
+    
+    // call dispatcher to switch context if needed
+    dispatcher();
+
     // for future phase(s)
-    p1_fork(proc_to_fill->pid);
+    p1_fork(new_process->pid);
 
     // More stuff to do here...
 
