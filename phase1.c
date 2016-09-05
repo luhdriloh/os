@@ -156,6 +156,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
 
     // find an empty slot in the process table, and change PID
+    nextPid++;
     for (int i = 0; i < 50; i++) {
         
         if (ProcTable[nextPid % 50].status == UNUSED) {
@@ -166,6 +167,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         nextPid++;
     }
 
+
     // check if table is full
     if (procSlot == -1) {
         USLOSS_Console("fork1(): Process table full. Returning -1.\n");
@@ -173,6 +175,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
 
     new_process = &ProcTable[procSlot];
+
 
     // fill-in entry in process table */
     if (strlen(name) >= (MAXNAME - 1)) {
@@ -254,9 +257,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     // for future phase(s)
     p1_fork(new_process->pid);
 
-    // More stuff to do here...
-
-    return -1;  // -1 is not correct! Here to prevent warning.
+    return nextPid;
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
@@ -270,11 +271,16 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 void launch()
 {
     int result;
+    union psrValues current_psr_status;
 
     if (DEBUG && debugflag)
         USLOSS_Console("launch(): started\n");
 
+    
     // Enable interrupts
+    current_psr_status.integerPart = USLOSS_PsrGet();
+    current_psr_status.bits.curIntEnable = 1;
+    USLOSS_PsrSet(current_psr_status.integerPart);
 
     // Call the function passed to fork1, and capture its return value
     result = Current->startFunc(Current->startArg);
@@ -301,14 +307,86 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *status)
 {
-    return -1;  // -1 is not correct! Here to prevent warning.
+    // block off the parents
+    procPtr children, scout, ready;
+    
+    children = Current->childProcPtr;
+    scout = children;
+    ready = NULL;
+
+
+    // check if children exist
+    if (scout == NULL) {
+        return -2;
+    }
+
+
+    // find a child that has quit
+    while (scout != NULL) {
+
+        if (scout->status == QUIT) {
+            scout->status == UNUSED;
+            *status = scout->exit_status;
+
+            if (!delete_node(&children, scout)) {
+                USLOSS_Console("join(): Delete child pointer error\n");
+            }
+
+            return scout->pid;
+        }
+
+        scout = scout->nextSiblingPtr;
+    }
+
+
+    // no children have quit yet, you must join block the parent
+    Current->status = JOINBLOCKED;
+
+
+    dispatcher();
+    return join(status);
 } /* join */
+
+
+/* ------------------------------------------------------------------------
+   Name - delete node
+   Purpose - deletes a node from a list (either the readylist or sibling list)
+   Parameters - the head of the list and the address of the node to be removed
+   Returns - and int indicating whether the node was successfully remove
+   Side Effects - removes the specified node from the list
+   ------------------------------------------------------------------------ */
+int delete_node(procPtr *head, procPtr to_delete) {
+    procPtr scout;
+
+    scout = *head;
+
+    if (scout == NULL) {
+        return 0;
+    }
+
+    if (scout == to_delete) {
+        *head = current_proc->nextSiblingPtr;
+        return 1;
+    }
+
+    while (scout->nextSiblingPtr != NULL) {
+
+        if (scout->nextSiblingPtr == to_delete) {
+            scout->nextSiblingPtr = scout->nextSiblingPtr->nextSiblingPtr;
+            return 1;
+        }
+
+        scout = scout->nextSiblingPtr;
+    }
+
+    return 0;
+} /* delete_node */
 
 
 /* ------------------------------------------------------------------------
    Name - quit
    Purpose - Stops the child process and notifies the parent of the death by
-             putting child quit info on the parents child completion code
+             putting child quit info on the parents' child completion code
              list.
    Parameters - the code to return to the grieving parent
    Returns - nothing
@@ -316,6 +394,8 @@ int join(int *status)
    ------------------------------------------------------------------------ */
 void quit(int status)
 {
+
+
     p1_quit(Current->pid);
 } /* quit */
 
@@ -334,7 +414,28 @@ void dispatcher(void)
 {
     procPtr nextProcess = NULL;
 
+    // loop through ready list in order of greatest priority
+    // TODO: check if the process is blocked
+    for (int i = MAXPRIORITY; i < AMOUNTPRIORITIES; i++) {
+
+        if (ReadyList[i] != null) {
+            nextProcess = ReadyList[i];
+            
+            while (nextProcess->status != READY) {
+                delete_node(*ReadyList[i], nextProcess);
+                nextProcess = ReadyList[i];
+            }
+
+            if (nextProcess != NULL) {
+                break;
+            }
+        }
+    }
+
+    USLOSS_ContextSwitch(Current, nextProcess);
     p1_switch(Current->pid, nextProcess->pid);
+    Current = nextProcess;
+
 } /* dispatcher */
 
 

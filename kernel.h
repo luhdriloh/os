@@ -7,6 +7,7 @@ typedef struct procStruct * procPtr;
 
 struct procStruct {
    procPtr         nextProcPtr;
+   procPtr         parentProcPtr;
    procPtr         childProcPtr;
    procPtr         nextSiblingPtr;
    char            name[MAXNAME];     /* process's name */
@@ -18,6 +19,7 @@ struct procStruct {
    char           *stack;
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
+   int             exit_status;
    /* other fields as needed... */
 };
 
@@ -42,6 +44,7 @@ union psrValues {
 #define BLOCKED 2
 #define RUNNING 3
 #define QUIT 4
+#define JOINBLOCKED 5
 
 #define NO_CURRENT_PROCESS NULL
 #define MINPRIORITY 5
