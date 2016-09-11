@@ -33,7 +33,7 @@ procStruct ProcTable[MAXPROC];
 // Process lists
 static procPtr ReadyList[AMOUNTPRIORITIES];
 
-// current process ID
+// current process
 procPtr Current;
 
 // the next pid to be assigned
@@ -62,7 +62,7 @@ void startup()
         USLOSS_Console("startup(): initializing the Ready list\n");
 
     // Initialize the clock interrupt handler
-    // 
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_interrupt_handler;
 
     // startup a sentinel process
     if (DEBUG && debugflag)
@@ -121,7 +121,7 @@ void finish()
 int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
-    int procSlot = -1;
+    int i, procSlot = -1;
     procPtr new_process = NULL;
     union psrValues current_psr_status;
 
@@ -157,7 +157,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // find an empty slot in the process table, and change PID
     nextPid++;
-    for (int i = 0; i < 50; i++) {
+    for (i = 0; i < 50; i++) {
         
         if (ProcTable[nextPid % 50].status == UNUSED) {
             procSlot = nextPid % 50;
@@ -211,7 +211,6 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
 
     // save the start function, arg, priority,
-    strcpy(new_process->startArg, arg);
     new_process->startFunc = startFunc;
     new_process->priority = priority;
     new_process->stackSize = stacksize;
@@ -236,17 +235,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
 
     // add child to parent children list
-    if (Current->childProcPtr != NULL) {
+    if (Current != NULL) {
         procPtr current_proc = Current->childProcPtr;
-
-        while (current_proc->nextSiblingPtr != NULL) {
-            current_proc = current_proc->nextSiblingPtr;
-        }
-
-        current_proc->nextSiblingPtr = new_process;
-    }
-    else {
-        Current->childProcPtr = new_process;
+        add_node(&current_proc, new_process, CHILDRENLIST);
     }
 
 
@@ -320,11 +311,10 @@ void launch()
 int join(int *status)
 {
     // block off the parents
-    procPtr children, quit_children, ready;
+    procPtr children, quit_children;
     
     children = Current->childProcPtr;
     quit_children = Current->quitChildProcPtr;
-    ready = NULL;
 
 
     // check to see that you have no children
@@ -407,10 +397,11 @@ void quit(int status)
 void dispatcher(void)
 {
     procPtr nextProcess = NULL;
+    int i;
 
     // loop through ready list in order of greatest priority
 
-    for (int i = MAXPRIORITY; i < AMOUNTPRIORITIES; i++) {
+    for (i = MAXPRIORITY; i < AMOUNTPRIORITIES; i++) {
 
         if (ReadyList[i] != NULL) {
             nextProcess = ReadyList[i];
@@ -428,7 +419,10 @@ void dispatcher(void)
     }
 
     
-    if (Current->pid != nextProcess->pid) {
+    if (Current == NULL) {
+        Current = nextProcess;
+    }
+    else if (Current->pid != nextProcess->pid) {
         USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
         p1_switch(Current->pid, nextProcess->pid);
         Current = nextProcess;
@@ -563,7 +557,7 @@ int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
 
 
 /* ------------------------------------------------------------------------
-   Name - delete node
+   Name - add node
    Purpose - deletes a node from a list (either the readylist or sibling list)
    Parameters - the head of the list and the address of the node to be removed
    Returns - and int indicating whether the node was successfully remove
@@ -609,9 +603,29 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
 } /* delete_node */
 
 
+/* ------------------------------------------------------------------------
+   Name -  clock_interrupt_handler
+   Purpose - deletes a node from a list (either the readylist or sibling list)
+   Parameters - the head of the list and the address of the node to be removed
+   Returns - and int indicating whether the node was successfully remove
+   Side Effects - removes the specified node from the list
+   ------------------------------------------------------------------------ */
+void clock_interrupt_handler(int dev, void *arg) {
+
+} /* clock_interrupt_handler */
 
 
 
+/* ------------------------------------------------------------------------
+   Name -  read_current_start_time
+   Purpose - deletes a node from a list (either the readylist or sibling list)
+   Parameters - the head of the list and the address of the node to be removed
+   Returns - and int indicating whether the node was successfully remove
+   Side Effects - removes the specified node from the list
+   ------------------------------------------------------------------------ */
+int read_current_start_time() {
+    return 1;
+} /* read_current_start_time */
 
 
 
