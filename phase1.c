@@ -333,7 +333,10 @@ int join(int *status)
     }
 
 
-    // check your quit_children and see if you can 
+    /* 
+        check your quit_children list to check if you have any quit
+        child processes
+    */
     if (quit_children != NULL) {
         *status = quit_children->exit_status;
         quit_children->status = UNUSED;
@@ -366,22 +369,29 @@ void quit(int status)
     procPtr toQuit = Current;
     procPtr parent = toQuit->parentProcPtr;
 
-    // when the child quits we need to now put it into the parents
-    // quitChildProcPtr list
-
     // check that this process has no children
     if (scout->childProcPtr != NULL) {
         USLOSS_Console("quit(): Current has active children.\n");
         USLOSS_Halt(1);
     }
 
+    
+    // store the exit status into the exit_status struct member
     Current->exit_status = status;
 
+    
     // delete from parents children list and add to parents quit children list
     delete_node(&parent->childProcPtr, toQuit, CHILDRENLIST);
     add_node(&parent->quitChildProcPtr, toQuit, QUITLIST);
 
+    
+    // if parent is blocked child must unblock it
+    if (parent->status == JOINBLOCKED) {
+        parent->status = READY;
+    }
+
     p1_quit(Current->pid);
+    dispatcher();
 } /* quit */
 
 
