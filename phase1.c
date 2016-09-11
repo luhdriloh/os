@@ -218,6 +218,15 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     new_process->status = READY;
 
 
+    // set up procPtr
+    new_process->nextProcPtr = NULL;
+    new_process->childProcPtr = NULL;
+    new_process->nextSiblingPtr = NULL;
+    new_process->quitChildProcPtr = NULL;
+    new_process->nextQuitSibling = NULL;
+    new_process->parentProcPtr = Current;
+
+
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
     USLOSS_ContextInit(&(new_process->state), USLOSS_PsrGet(),
@@ -226,13 +235,14 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
                        launch);
 
 
-    // add child information to the parent
+    // add child to parent children list
     if (Current->childProcPtr != NULL) {
         procPtr current_proc = Current->childProcPtr;
 
         while (current_proc->nextSiblingPtr != NULL) {
             current_proc = current_proc->nextSiblingPtr;
         }
+
         current_proc->nextSiblingPtr = new_process;
     }
     else {
@@ -252,7 +262,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     temp_process = new_process;
     
     // call dispatcher to switch context if needed
-    dispatcher();
+    if (startFunc != sentinel) {
+        dispatcher();
+    } 
 
     // for future phase(s)
     p1_fork(new_process->pid);
@@ -311,76 +323,33 @@ int join(int *status)
     procPtr children, scout, ready;
     
     children = Current->childProcPtr;
-    scout = children;
+    quit_children = Current->quitChildProcPtr;
     ready = NULL;
 
 
-    // check if children exist
-    if (scout == NULL) {
+    // check to see that you have no children
+    if (children == NULL && quit_children == NULL) {
         return -2;
     }
 
 
-    // find a child that has quit
-    while (scout != NULL) {
+    // check your quit_children and see if you can 
+    if (quit_children != NULL) {
+        *status = quit_children->exit_status;
+        quit_children->status = UNUSED;
+        delete_node(&quit_children, quit_children, QUITLIST);
 
-        if (scout->status == QUIT) {
-            scout->status == UNUSED;
-            *status = scout->exit_status;
-
-            if (!delete_node(&children, scout)) {
-                USLOSS_Console("join(): Delete child pointer error\n");
-            }
-
-            return scout->pid;
-        }
-
-        scout = scout->nextSiblingPtr;
+        return quit_children->pid;
     }
-
-
-    // no children have quit yet, you must join block the parent
-    Current->status = JOINBLOCKED;
+    else {
+        // no children have quit yet, you must join block the parent
+        Current->status = JOINBLOCKED;
+    }
 
 
     dispatcher();
     return join(status);
 } /* join */
-
-
-/* ------------------------------------------------------------------------
-   Name - delete node
-   Purpose - deletes a node from a list (either the readylist or sibling list)
-   Parameters - the head of the list and the address of the node to be removed
-   Returns - and int indicating whether the node was successfully remove
-   Side Effects - removes the specified node from the list
-   ------------------------------------------------------------------------ */
-int delete_node(procPtr *head, procPtr to_delete) {
-    procPtr scout;
-
-    scout = *head;
-
-    if (scout == NULL) {
-        return 0;
-    }
-
-    if (scout == to_delete) {
-        *head = current_proc->nextSiblingPtr;
-        return 1;
-    }
-
-    while (scout->nextSiblingPtr != NULL) {
-
-        if (scout->nextSiblingPtr == to_delete) {
-            scout->nextSiblingPtr = scout->nextSiblingPtr->nextSiblingPtr;
-            return 1;
-        }
-
-        scout = scout->nextSiblingPtr;
-    }
-
-    return 0;
-} /* delete_node */
 
 
 /* ------------------------------------------------------------------------
@@ -394,7 +363,23 @@ int delete_node(procPtr *head, procPtr to_delete) {
    ------------------------------------------------------------------------ */
 void quit(int status)
 {
+    procPtr toQuit = Current;
+    procPtr parent = toQuit->parentProcPtr;
 
+    // when the child quits we need to now put it into the parents
+    // quitChildProcPtr list
+
+    // check that this process has no children
+    if (scout->childProcPtr != NULL) {
+        USLOSS_Console("quit(): Current has active children.\n");
+        USLOSS_Halt(1);
+    }
+
+    Current->exit_status = status;
+
+    // delete from parents children list and add to parents quit children list
+    delete_node(&parent->childProcPtr, toQuit, CHILDRENLIST);
+    add_node(&parent->quitChildProcPtr, toQuit, QUITLIST);
 
     p1_quit(Current->pid);
 } /* quit */
@@ -462,6 +447,7 @@ int sentinel (char *dummy)
 } /* sentinel */
 
 
+
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
@@ -483,3 +469,169 @@ void disableInterrupts()
         // We ARE in kernel mode
         USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
 } /* disableInterrupts */
+
+
+
+/* ------------------------------------------------------------------------
+   Name - delete node
+   Purpose - deletes a node from a list (either the readylist or sibling list)
+   Parameters - the head of the list and the address of the node to be removed
+   Returns - and int indicating whether the node was successfully remove
+   Side Effects - removes the specified node from the list
+   ------------------------------------------------------------------------ */
+int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
+    procPtr scout;
+
+    scout = *head;
+
+    if (scout == NULL) {
+        return 0;
+    }
+
+    switch (which_list) {
+        case READYLIST:
+            if (scout == to_delete) {
+                *head = scout->nextProcPtr;
+                return 1;
+            }
+
+            while (scout->nextProcPtr != NULL) {
+
+                if (scout->nextProcPtr == to_delete) {
+                    scout->nextProcPtr = scout->nextProcPtr->nextProcPtr;
+                    return 1;
+                }
+
+                scout = scout->nextProcPtr;
+            }
+
+            return 0;
+
+        case QUITLIST:
+            if (scout == to_delete) {
+                *head = scout->nextQuitSibling;
+                return 1;
+            }
+
+            while (scout->nextQuitSibling != NULL) {
+
+                if (scout->nextQuitSibling == to_delete) {
+                    scout->nextQuitSibling = scout->nextQuitSibling->nextQuitSibling;
+                    return 1;
+                }
+
+                scout = scout->nextQuitSibling;
+            }
+
+            return 0;
+
+        case CHILDRENLIST:
+            if (scout == to_delete) {
+                *head = scout->nextSiblingPtr;
+                return 1;
+            }
+
+            while (scout->nextSiblingPtr != NULL) {
+
+                if (scout->nextSiblingPtr == to_delete) {
+                    scout->nextSiblingPtr = scout->nextSiblingPtr->nextSiblingPtr;
+                    return 1;
+                }
+
+                scout = scout->nextSiblingPtr;
+            }
+
+            return 0;
+    }
+
+    return 0;
+} /* delete_node */
+
+
+
+/* ------------------------------------------------------------------------
+   Name - delete node
+   Purpose - deletes a node from a list (either the readylist or sibling list)
+   Parameters - the head of the list and the address of the node to be removed
+   Returns - and int indicating whether the node was successfully remove
+   Side Effects - removes the specified node from the list
+   ------------------------------------------------------------------------ */
+int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
+    procPtr scout;
+
+    scout = *head;
+
+    if (scout == null) {
+        scout = to_add;
+        return 1;
+    }
+
+    switch (which_list) {
+        case READYLIST:
+             while (scout->nextProcPtr != NULL) {
+                scout = scout->nextProcPtr;
+            }
+
+            scout->nextProcPtr = new_process;
+            return 1;
+
+        case QUITLIST:
+            while (scout->nextQuitSibling != NULL) {
+                scout = scout->nextQuitSibling;
+            }
+
+            scout->nextQuitSibling = new_process;
+            return 1;
+
+        case CHILDRENLIST:
+            while (scout->nextSiblingPtr != NULL) {
+                scout = scout->nextSiblingPtr;
+            }
+
+            scout->nextSiblingPtr = new_process;
+            return 1;
+    }
+
+    return 0;
+} /* delete_node */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
