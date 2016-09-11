@@ -42,7 +42,10 @@ union psrValues {
    unsigned int integerPart;
 };
 
-/* Some useful constants.  Add more as needed... */
+
+extern int   delete_node(procPtr *head, procPtr to_delete, list_to_change which_list);
+extern int   add_node(procPtr *head, procPtr to_add, list_to_change which_list);
+
 
 /* Status of Process */
 #define UNUSED 0

@@ -55,8 +55,6 @@ extern int   readCurStartTime(void);
 extern void  timeSlice(void);
 extern void  dispatcher(void);
 extern int   readtime(void);
-extern int   delete_node(procPtr *head, procPtr to_delete, list_to_change which_list);
-extern int   add_node(procPtr *head, procPtr to_add, list_to_change which_list);
 
 extern void  p1_fork(int pid);
 extern void  p1_quit(int pid);

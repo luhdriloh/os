@@ -320,7 +320,7 @@ void launch()
 int join(int *status)
 {
     // block off the parents
-    procPtr children, scout, ready;
+    procPtr children, quit_children, ready;
     
     children = Current->childProcPtr;
     quit_children = Current->quitChildProcPtr;
@@ -333,10 +333,8 @@ int join(int *status)
     }
 
 
-    /* 
-        check your quit_children list to check if you have any quit
-        child processes
-    */
+    // check your quit_children list to check if you have any quit
+    // child processes
     if (quit_children != NULL) {
         *status = quit_children->exit_status;
         quit_children->status = UNUSED;
@@ -369,8 +367,9 @@ void quit(int status)
     procPtr toQuit = Current;
     procPtr parent = toQuit->parentProcPtr;
 
+
     // check that this process has no children
-    if (scout->childProcPtr != NULL) {
+    if (parent->childProcPtr != NULL) {
         USLOSS_Console("quit(): Current has active children.\n");
         USLOSS_Halt(1);
     }
@@ -410,14 +409,15 @@ void dispatcher(void)
     procPtr nextProcess = NULL;
 
     // loop through ready list in order of greatest priority
-    // TODO: check if the process is blocked
+
     for (int i = MAXPRIORITY; i < AMOUNTPRIORITIES; i++) {
 
-        if (ReadyList[i] != null) {
+        if (ReadyList[i] != NULL) {
             nextProcess = ReadyList[i];
             
+            // if process is anything but ready, it is removed
             while (nextProcess->status != READY) {
-                delete_node(*ReadyList[i], nextProcess);
+                delete_node(&ReadyList[i], nextProcess, READYLIST);
                 nextProcess = ReadyList[i];
             }
 
@@ -427,9 +427,12 @@ void dispatcher(void)
         }
     }
 
-    USLOSS_ContextSwitch(Current, nextProcess);
-    p1_switch(Current->pid, nextProcess->pid);
-    Current = nextProcess;
+    
+    if (Current->pid != nextProcess->pid) {
+        USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
+        p1_switch(Current->pid, nextProcess->pid);
+        Current = nextProcess;
+    }
 
 } /* dispatcher */
 
@@ -571,7 +574,7 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
 
     scout = *head;
 
-    if (scout == null) {
+    if (scout == NULL) {
         scout = to_add;
         return 1;
     }
@@ -582,7 +585,7 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
                 scout = scout->nextProcPtr;
             }
 
-            scout->nextProcPtr = new_process;
+            scout->nextProcPtr = to_add;
             return 1;
 
         case QUITLIST:
@@ -590,7 +593,7 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
                 scout = scout->nextQuitSibling;
             }
 
-            scout->nextQuitSibling = new_process;
+            scout->nextQuitSibling = to_add;
             return 1;
 
         case CHILDRENLIST:
@@ -598,7 +601,7 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
                 scout = scout->nextSiblingPtr;
             }
 
-            scout->nextSiblingPtr = new_process;
+            scout->nextSiblingPtr = to_add;
             return 1;
     }
 
