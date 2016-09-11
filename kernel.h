@@ -6,10 +6,16 @@ typedef struct procStruct procStruct;
 typedef struct procStruct * procPtr;
 
 struct procStruct {
-   procPtr         nextProcPtr;
-   procPtr         parentProcPtr;
+  /* Head Pointer */
+   procPtr         parentProcPtr;     
    procPtr         childProcPtr;
+   procPtr         quitChildProcPtr;
+
+   /* Next in List Pointer */
+   procPtr         nextProcPtr;       /* for readylist */
    procPtr         nextSiblingPtr;
+   procPtr         nextQuitSibling;
+
    char            name[MAXNAME];     /* process's name */
    char            startArg[MAXARG];  /* args passed to process */
    USLOSS_Context  state;             /* current context for process */
