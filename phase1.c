@@ -239,26 +239,25 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         procPtr current_proc = Current->childProcPtr;
         add_node(&current_proc, new_process, CHILDRENLIST);
     }
+    else {
+        Current = new_process;
+    }
 
 
     // insert into ready list
-    procPtr temp_process = ReadyList[priority];
-
-    if (temp_process != NULL) {
-        while (temp_process->nextProcPtr != NULL) {
-            temp_process = temp_process->nextProcPtr; 
-        }
-    }
-
-    temp_process = new_process;
+    procPtr *readylist = &ReadyList[priority];
+    add_node(readylist, new_process, READYLIST);
     
+    
+    // for future phase(s)
+    p1_fork(new_process->pid);
+
+
     // call dispatcher to switch context if needed
     if (startFunc != sentinel) {
         dispatcher();
     } 
 
-    // for future phase(s)
-    p1_fork(new_process->pid);
 
     return nextPid;
 } /* fork1 */
@@ -568,8 +567,8 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
 
     scout = *head;
 
-    if (scout == NULL) {
-        scout = to_add;
+    if (*head == NULL) {
+        *head = to_add;
         return 1;
     }
 
