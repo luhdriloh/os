@@ -254,9 +254,6 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     if (Current != NULL) {
         add_node(&Current->childProcPtr, new_process, CHILDRENLIST);
     }
-    else {
-        Current = new_process;
-    }
 
 
     // insert into ready list
@@ -446,7 +443,7 @@ void dispatcher(void)
     
     // dont save the state of the process at the very beginning if sentinel, or
     // if the old process' state is QUIT
-    if (old_process->status == QUIT || old_process->startFunc == sentinel) {
+    if (old_process == NULL || old_process->status == QUIT) {
         USLOSS_ContextSwitch(NULL, &Current->state);
     }
     else {
@@ -496,7 +493,7 @@ static void checkDeadlock()
         }
     }
 
-    USLOSS_Console("All processes completed\n");
+    USLOSS_Console("All processes completed.\n");
     USLOSS_Halt(0);
 } /* checkDeadlock */
 
@@ -668,14 +665,102 @@ int readCurStartTime() {
 } /* readCurStartTime */
 
 
+/* ------------------------------------------------------------------------
+   Name -  dumpProcesses
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ------------------------------------------------------------------------ */
+void dumpProcesses() {
+    int i;
 
-int zap(int pid) { return 1;}
-int isZapped() { return 1;}
-int getPid() { return 1;}
-void dumpProcesses() {}
-int blockMe(int newStatus) { return 1;}
-int unblockProc(int pid) { return 1;}
-void timeSlice() {}
+    printf("PID\tParent\tPriority\tStatus\t# Kids\tCPUtime\tName\n");
+
+    for (i = 0; i < MAXPROC; i++) {
+        procStruct current = ProcTable[i];
+        printf("%d\t", current.pid);
+        printf("%d\t", current.parentProcPtr->pid);   
+        printf("%d\t", current.priority);
+        printf("%d\t", current.status);
+        printf("%d\t", 5);
+        printf("%d\t", 10);
+        printf("%s\t\n", current.name);
+    }
+} /* dumpProcesses */
+
+
+/* ------------------------------------------------------------------------
+   Name - zap
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ------------------------------------------------------------------------ */
+int zap(int pid) {
+    return 1;
+} /* zap */
+
+
+/* ------------------------------------------------------------------------
+   Name - isZapped
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ------------------------------------------------------------------------ */
+int isZapped() {
+    return 1;
+} /* isZapped */
+
+
+/* ------------------------------------------------------------------------
+   Name - getPid
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ------------------------------------------------------------------------ */
+int getPid() {
+    return 1;
+} /* getPid */
+
+
+/* ------------------------------------------------------------------------
+   Name - blockMe
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ------------------------------------------------------------------------ */
+int blockMe(int newStatus) {
+    return 1;
+} /* blockMe */
+
+
+/* ------------------------------------------------------------------------
+   Name - unblockProc
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ------------------------------------------------------------------------ */
+int unblockProc(int pid) {
+    return 1;
+} /* unblockProc */
+
+
+/* ------------------------------------------------------------------------
+   Name - timeSlice
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ------------------------------------------------------------------------ */
+void timeSlice() {
+
+} /* timeSlice */
+
 
 
 
