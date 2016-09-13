@@ -25,7 +25,7 @@ static void checkDeadlock();
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
-int debugflag = 1;
+int debugflag = 0;
 
 // the process table
 procStruct ProcTable[MAXPROC];
@@ -52,6 +52,7 @@ unsigned int nextPid = SENTINELPID;
 void startup()
 {
     int result; // value returned by call to fork1()
+    Current = NULL;
 
     // initialize the process table
     if (DEBUG && debugflag)
@@ -65,10 +66,15 @@ void startup()
     USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_interrupt_handler;
 
     // startup a sentinel process
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("startup(): calling fork1() for sentinel\n");
+    }
+    
+
     result = fork1("sentinel", sentinel, NULL, USLOSS_MIN_STACK,
                     SENTINELPRIORITY);
+
+
     if (result < 0) {
         if (DEBUG && debugflag) {
             USLOSS_Console("startup(): fork1 of sentinel returned error, ");
@@ -78,14 +84,20 @@ void startup()
     }
   
     // start the test process
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("startup(): calling fork1() for start1\n");
+    }
+
+
     result = fork1("start1", start1, NULL, 2 * USLOSS_MIN_STACK, 1);
+
+
     if (result < 0) {
         USLOSS_Console("startup(): fork1 for start1 returned an error, ");
         USLOSS_Console("halting...\n");
         USLOSS_Halt(1);
     }
+
 
     USLOSS_Console("startup(): Should not see this message! ");
     USLOSS_Console("Returned from fork1 call that created start1\n");
@@ -156,7 +168,6 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
 
     // find an empty slot in the process table, and change PID
-    nextPid++;
     for (i = 0; i < 50; i++) {
         
         if (ProcTable[nextPid % 50].status == UNUSED) {
@@ -168,13 +179,14 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
 
 
-    // check if table is full
+    // check if table is full and set pid
     if (procSlot == -1) {
         USLOSS_Console("fork1(): Process table full. Returning -1.\n");
         return -1;
     }
 
     new_process = &ProcTable[procSlot];
+    new_process->pid = nextPid;
 
 
     // fill-in entry in process table */
@@ -236,8 +248,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // add child to parent children list
     if (Current != NULL) {
-        procPtr current_proc = Current->childProcPtr;
-        add_node(&current_proc, new_process, CHILDRENLIST);
+        add_node(&Current->childProcPtr, new_process, CHILDRENLIST);
     }
     else {
         Current = new_process;
@@ -259,7 +270,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     } 
 
 
-    return nextPid;
+    return nextPid++;
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
@@ -327,7 +338,7 @@ int join(int *status)
     if (quit_children != NULL) {
         *status = quit_children->exit_status;
         quit_children->status = UNUSED;
-        delete_node(&quit_children, quit_children, QUITLIST);
+        delete_node(&Current->quitChildProcPtr, quit_children, QUITLIST);
 
         return quit_children->pid;
     }
@@ -358,7 +369,7 @@ void quit(int status)
 
 
     // check that this process has no children
-    if (parent->childProcPtr != NULL) {
+    if (toQuit->childProcPtr != NULL) {
         USLOSS_Console("quit(): Current has active children.\n");
         USLOSS_Halt(1);
     }
@@ -368,6 +379,10 @@ void quit(int status)
     Current->exit_status = status;
 
     
+    // change the status to quit
+    Current->status = QUIT;
+
+
     // delete from parents children list and add to parents quit children list
     delete_node(&parent->childProcPtr, toQuit, CHILDRENLIST);
     add_node(&parent->quitChildProcPtr, toQuit, QUITLIST);
@@ -376,6 +391,7 @@ void quit(int status)
     // if parent is blocked child must unblock it
     if (parent->status == JOINBLOCKED) {
         parent->status = READY;
+        add_node(&ReadyList[parent->priority], parent, READYLIST);
     }
 
     p1_quit(Current->pid);
@@ -406,7 +422,7 @@ void dispatcher(void)
             nextProcess = ReadyList[i];
             
             // if process is anything but ready, it is removed
-            while (nextProcess->status != READY) {
+            while (nextProcess != NULL && nextProcess->status != READY) {
                 delete_node(&ReadyList[i], nextProcess, READYLIST);
                 nextProcess = ReadyList[i];
             }
@@ -418,13 +434,21 @@ void dispatcher(void)
     }
 
     
-    if (Current == NULL) {
+    if (Current->status == QUIT) {
         Current = nextProcess;
+        USLOSS_ContextSwitch(NULL, &Current->state);
     }
-    else if (Current->pid != nextProcess->pid) {
-        USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
-        p1_switch(Current->pid, nextProcess->pid);
+    else {
+        procPtr temp = Current;
         Current = nextProcess;
+        p1_switch(temp->pid, Current->pid);
+
+        if (temp->startFunc == sentinel) {
+            USLOSS_ContextSwitch(NULL, &Current->state);
+        }
+        else {
+            USLOSS_ContextSwitch(&temp->state, &Current->state);
+        }
     }
 
 } /* dispatcher */
@@ -457,6 +481,17 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
+    int i;
+
+    for (i = MAXPRIORITY; i < SENTINELPRIORITY; i++) {
+        
+        if (ReadyList[i] != NULL) {
+            USLOSS_Halt(1);
+        }
+    }
+
+    USLOSS_Console("All processes completed\n");
+    USLOSS_Halt(0);
 } /* checkDeadlock */
 
 
