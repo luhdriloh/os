@@ -55,6 +55,7 @@ extern int   readCurStartTime(void);
 extern void  timeSlice(void);
 extern void  dispatcher(void);
 extern int   readtime(void);
+extern void  clock_interrupt_handler(int dev, void *arg);
 
 extern void  p1_fork(int pid);
 extern void  p1_quit(int pid);
