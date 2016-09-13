@@ -20,6 +20,8 @@ extern int start1 (char *);
 void dispatcher(void);
 void launch();
 static void checkDeadlock();
+int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list);
+int add_node(procPtr *head, procPtr to_add, list_to_change which_list);
 
 
 /* -------------------------- Globals ------------------------------------- */
@@ -105,6 +107,7 @@ void startup()
     return;
 } /* startup */
 
+
 /* ------------------------------------------------------------------------
    Name - finish
    Purpose - Required by USLOSS
@@ -117,6 +120,7 @@ void finish()
     if (DEBUG && debugflag)
         USLOSS_Console("in finish...\n");
 } /* finish */
+
 
 /* ------------------------------------------------------------------------
    Name - fork1
@@ -273,6 +277,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     return nextPid++;
 } /* fork1 */
 
+
 /* ------------------------------------------------------------------------
    Name - launch
    Purpose - Dummy function to enable interrupts and launch a given process
@@ -411,44 +416,42 @@ void quit(int status)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
-    procPtr nextProcess = NULL;
+    procPtr next_process = NULL;
     int i;
 
+    
     // loop through ready list in order of greatest priority
-
     for (i = MAXPRIORITY; i < AMOUNTPRIORITIES; i++) {
 
         if (ReadyList[i] != NULL) {
-            nextProcess = ReadyList[i];
+            next_process = ReadyList[i];
             
             // if process is anything but ready, it is removed
-            while (nextProcess != NULL && nextProcess->status != READY) {
-                delete_node(&ReadyList[i], nextProcess, READYLIST);
-                nextProcess = ReadyList[i];
+            while (next_process != NULL && next_process->status != READY) {
+                delete_node(&ReadyList[i], next_process, READYLIST);
+                next_process = ReadyList[i];
             }
 
-            if (nextProcess != NULL) {
+            if (next_process != NULL) {
                 break;
             }
         }
     }
 
+
+    // set the pointers to the new processes
+    procPtr old_process = Current;
+    Current = next_process;
+
     
-    if (Current->status == QUIT) {
-        Current = nextProcess;
+    // dont save the state of the process at the very beginning if sentinel, or
+    // if the old process' state is QUIT
+    if (old_process->status == QUIT || old_process->startFunc == sentinel) {
         USLOSS_ContextSwitch(NULL, &Current->state);
     }
     else {
-        procPtr temp = Current;
-        Current = nextProcess;
-        p1_switch(temp->pid, Current->pid);
-
-        if (temp->startFunc == sentinel) {
-            USLOSS_ContextSwitch(NULL, &Current->state);
-        }
-        else {
-            USLOSS_ContextSwitch(&temp->state, &Current->state);
-        }
+        p1_switch(old_process->pid, Current->pid);
+        USLOSS_ContextSwitch(&old_process->state, &Current->state);
     }
 
 } /* dispatcher */
@@ -483,9 +486,12 @@ static void checkDeadlock()
 {
     int i;
 
+    // check through all of the ReadyList
     for (i = MAXPRIORITY; i < SENTINELPRIORITY; i++) {
         
+        // make sure all processes are done
         if (ReadyList[i] != NULL) {
+            USLOSS_Console("Not all processes are done. Abnormal exit.\n");
             USLOSS_Halt(1);
         }
     }
@@ -592,10 +598,10 @@ int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
 
 /* ------------------------------------------------------------------------
    Name - add node
-   Purpose - deletes a node from a list (either the readylist or sibling list)
-   Parameters - the head of the list and the address of the node to be removed
-   Returns - and int indicating whether the node was successfully remove
-   Side Effects - removes the specified node from the list
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
    ------------------------------------------------------------------------ */
 int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
     procPtr scout;
@@ -639,10 +645,10 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
 
 /* ------------------------------------------------------------------------
    Name -  clock_interrupt_handler
-   Purpose - deletes a node from a list (either the readylist or sibling list)
-   Parameters - the head of the list and the address of the node to be removed
-   Returns - and int indicating whether the node was successfully remove
-   Side Effects - removes the specified node from the list
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
    ------------------------------------------------------------------------ */
 void clock_interrupt_handler(int dev, void *arg) {
 
@@ -651,18 +657,25 @@ void clock_interrupt_handler(int dev, void *arg) {
 
 
 /* ------------------------------------------------------------------------
-   Name -  read_current_start_time
-   Purpose - deletes a node from a list (either the readylist or sibling list)
-   Parameters - the head of the list and the address of the node to be removed
-   Returns - and int indicating whether the node was successfully remove
-   Side Effects - removes the specified node from the list
+   Name -  readCurStartTime
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
    ------------------------------------------------------------------------ */
-int read_current_start_time() {
+int readCurStartTime() {
     return 1;
-} /* read_current_start_time */
+} /* readCurStartTime */
 
 
 
+int zap(int pid) { return 1;}
+int isZapped() { return 1;}
+int getPid() { return 1;}
+void dumpProcesses() {}
+int blockMe(int newStatus) { return 1;}
+int unblockProc(int pid) { return 1;}
+void timeSlice() {}
 
 
 
