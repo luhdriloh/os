@@ -42,10 +42,6 @@ union psrValues {
    unsigned int integerPart;
 };
 
-extern void  clock_interrupt_handler(int dev, void *arg);
-extern int   delete_node(procPtr *head, procPtr to_delete, list_to_change which_list);
-extern int   add_node(procPtr *head, procPtr to_add, list_to_change which_list);
-
 
 /* Status of Process */
 #define UNUSED 0
