@@ -50,6 +50,8 @@ union psrValues {
 #define RUNNING 3
 #define QUIT 4
 #define JOINBLOCKED 5
+#define ZAPPED 6
+#define ZAPBLOCKED 7
 
 #define NO_CURRENT_PROCESS NULL
 #define MINPRIORITY 5
