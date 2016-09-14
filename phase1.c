@@ -707,7 +707,36 @@ void dumpProcesses() {
    Side Effects -
    ------------------------------------------------------------------------ */
 int zap(int pid) {
-    return 1;
+    int pid_to_zap;
+    procPtr process_to_zap;
+
+    pid_to_zap = pid % MAXPROC;
+    process_to_zap = &ProcTable[pid_to_zap];
+
+
+    // check zapped process exists and that it is not itself
+    if (process_to_zap->status == UNUSED || Current->pid == pid_to_zap) {
+        USLOSS_Console("zap(): Tried to zap non-existant process, or tried to zap itself.\n");
+        USLOSS_Halt(1);
+    }
+
+
+    // check calling process is not zapped itself
+    if (Current->status == ZAPPED) {
+        return -1;
+    }
+
+    
+    // if process has quit then return 0
+    if (process_to_zap->status == QUIT) {
+        return 0;
+    }
+
+
+    process_to_zap->status = ZAPPED;
+
+
+    return 0;
 } /* zap */
 
 
@@ -719,7 +748,11 @@ int zap(int pid) {
    Side Effects -
    ------------------------------------------------------------------------ */
 int isZapped() {
-    return 1;
+    if (Current->status == ZAPPED) {
+        return 1;
+    }
+
+    return 0;
 } /* isZapped */
 
 
