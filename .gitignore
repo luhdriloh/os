@@ -2,3 +2,10 @@ usloss
 *.o
 *.a
 .DS_Store
+*.txt
+*.out
+testResults
+testcases
+testphase1.ksh
+test*
+dotest
