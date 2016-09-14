@@ -30,7 +30,7 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list);
 int debugflag = 0;
 
 // the process table
-procStruct ProcTable[MAXPROC];
+procStruct ProcTable[MAXPROC] = {};
 
 // Process lists
 static procPtr ReadyList[AMOUNTPRIORITIES];
@@ -340,8 +340,10 @@ int join(int *status)
     if (quit_children != NULL) {
         *status = quit_children->exit_status;
         quit_children->status = UNUSED;
-        delete_node(&Current->quitChildProcPtr, quit_children, QUITLIST);
 
+        // delete of the parents quit list and also from the readylist
+        delete_node(&Current->quitChildProcPtr, quit_children, QUITLIST);
+        delete_node(&ReadyList[quit_children->priority], quit_children, READYLIST);
         return quit_children->pid;
     }
     else {
@@ -386,15 +388,18 @@ void quit(int status)
 
 
     // delete from parents children list and add to parents quit children list
-    delete_node(&parent->childProcPtr, toQuit, CHILDRENLIST);
-    add_node(&parent->quitChildProcPtr, toQuit, QUITLIST);
-
-    
-    // if parent is blocked child must unblock it
-    if (parent->status == JOINBLOCKED) {
-        parent->status = READY;
-        add_node(&ReadyList[parent->priority], parent, READYLIST);
+    if (parent != NULL) {
+        // here is the error
+        delete_node(&parent->childProcPtr, toQuit, CHILDRENLIST);
+        add_node(&parent->quitChildProcPtr, toQuit, QUITLIST);
+   	    
+        // if parent is blocked child must unblock it
+   	    if (parent->status == JOINBLOCKED) {
+            parent->status = READY;
+            add_node(&ReadyList[parent->priority], parent, READYLIST);
+        }
     }
+    
 
     p1_quit(Current->pid);
     dispatcher();
@@ -540,7 +545,6 @@ int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
             }
 
             while (scout->nextProcPtr != NULL) {
-
                 if (scout->nextProcPtr == to_delete) {
                     scout->nextProcPtr = scout->nextProcPtr->nextProcPtr;
                     return 1;
@@ -558,7 +562,6 @@ int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
             }
 
             while (scout->nextQuitSibling != NULL) {
-
                 if (scout->nextQuitSibling == to_delete) {
                     scout->nextQuitSibling = scout->nextQuitSibling->nextQuitSibling;
                     return 1;
@@ -571,12 +574,12 @@ int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
 
         case CHILDRENLIST:
             if (scout == to_delete) {
+                
                 *head = scout->nextSiblingPtr;
                 return 1;
             }
-
-            while (scout->nextSiblingPtr != NULL) {
-
+	
+             while (scout->nextSiblingPtr != NULL) {
                 if (scout->nextSiblingPtr == to_delete) {
                     scout->nextSiblingPtr = scout->nextSiblingPtr->nextSiblingPtr;
                     return 1;
@@ -589,7 +592,7 @@ int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
     }
 
     return 0;
-} /* delete_node */
+} /* deletenode */
 
 
 
@@ -602,7 +605,6 @@ int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
    ------------------------------------------------------------------------ */
 int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
     procPtr scout;
-
     scout = *head;
 
     if (*head == NULL) {
@@ -637,7 +639,7 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
     }
 
     return 0;
-} /* delete_node */
+} /* add_node */
 
 
 /* ------------------------------------------------------------------------
@@ -675,16 +677,23 @@ int readCurStartTime() {
 void dumpProcesses() {
     int i;
 
-    printf("PID\tParent\tPriority\tStatus\t# Kids\tCPUtime\tName\n");
+    printf("PID\tParent   \tPriority   Status   # Kids   CPUtime   Name\n");
 
     for (i = 0; i < MAXPROC; i++) {
         procStruct current = ProcTable[i];
-        printf("%d\t", current.pid);
-        printf("%d\t", current.parentProcPtr->pid);   
-        printf("%d\t", current.priority);
-        printf("%d\t", current.status);
-        printf("%d\t", 5);
-        printf("%d\t", 10);
+        printf("%5d\t", current.pid);
+    	
+    	if (current.parentProcPtr == NULL) {
+    	    printf("%5d\t", -2);	
+    	}
+    	else {
+            printf("%5d\t", current.parentProcPtr->pid);   
+	}
+
+        printf("%10d\t", current.priority);
+        printf("%5d\t", current.status);
+        printf("%8d\t", 5);
+        printf("%5d\t", 10);
         printf("%s\t\n", current.name);
     }
 } /* dumpProcesses */
@@ -721,9 +730,9 @@ int isZapped() {
    Returns -
    Side Effects -
    ------------------------------------------------------------------------ */
-int getPid() {
-    return 1;
-} /* getPid */
+int getpid() {
+    return Current->pid;
+} /* getpid */
 
 
 /* ------------------------------------------------------------------------
