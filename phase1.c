@@ -722,7 +722,7 @@ int zap(int pid) {
 
 
     // check calling process is not zapped itself
-    if (Current->status == ZAPPED) {
+    if (Current->status == ZAPPED ) {
         return -1;
     }
 
@@ -732,8 +732,13 @@ int zap(int pid) {
         return 0;
     }
 
-
     process_to_zap->status = ZAPPED;
+    // TODO make the current process ZAPBLOCKED
+    // TODO once ZAPBLOCKED call dispatcher
+    // TODO add zapper to procPtr to see who the zapper of a process is
+    // TODO in quit do something similiar to join where you unblock the
+    //   process that has done the zapping and put yourself on its zapped procPtr
+
 
 
     return 0;
