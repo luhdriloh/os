@@ -152,7 +152,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // test if in kernel mode, halt if in user mode
     if (current_psr_status.bits.curMode == 0) {
-        USLOSS_Console("fork1(): Processor is in user mode. Halting...\n");
+        USLOSS_Console("fork1(): called while in user mode, by process %d. Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
 
@@ -239,6 +239,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     new_process->nextSiblingPtr = NULL;
     new_process->quitChildProcPtr = NULL;
     new_process->nextQuitSibling = NULL;
+    new_process->zappedProcPtr = NULL;
+    new_process->zappersProcPtr = NULL;
+    new_process->nextZapperSibling = NULL;
     new_process->parentProcPtr = Current;
 
 
@@ -374,7 +377,7 @@ void quit(int status)
 
     // check that this process has no children
     if (toQuit->childProcPtr != NULL) {
-        USLOSS_Console("quit(): Current has active children.\n");
+        USLOSS_Console("quit(): process 2, 'start1', has active children. Halting...\n");
         USLOSS_Halt(1);
     }
 
@@ -397,6 +400,15 @@ void quit(int status)
    	    if (parent->status == JOINBLOCKED) {
             parent->status = READY;
             add_node(&ReadyList[parent->priority], parent, READYLIST);
+        }
+    }
+
+    if (Current->zappersProcPtr != NULL) {
+        procPtr scout = Current->zappersProcPtr; 
+        while (scout != NULL) {
+            scout->status = READY;
+            add_node(&ReadyList[scout->priority], scout, READYLIST);
+            scout = scout->nextZapperSibling;
         }
     }
     
@@ -429,7 +441,7 @@ void dispatcher(void)
             next_process = ReadyList[i];
             
             // if process is anything but ready, it is removed
-            while (next_process != NULL && next_process->status != READY) {
+            while (next_process != NULL && next_process->status != READY && next_process->status != ZAPPED) {
                 delete_node(&ReadyList[i], next_process, READYLIST);
                 next_process = ReadyList[i];
             }
@@ -444,6 +456,12 @@ void dispatcher(void)
     // set the pointers to the new processes
     procPtr old_process = Current;
     Current = next_process;
+
+
+    // add the process to the end of the readylist
+    delete_node(&ReadyList[Current->priority], Current, READYLIST);
+    add_node(&ReadyList[Current->priority], Current, READYLIST);
+    Current->nextProcPtr = NULL;
 
     
     // dont save the state of the process at the very beginning if sentinel, or
@@ -574,7 +592,6 @@ int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
 
         case CHILDRENLIST:
             if (scout == to_delete) {
-                
                 *head = scout->nextSiblingPtr;
                 return 1;
             }
@@ -586,6 +603,23 @@ int delete_node(procPtr *head, procPtr to_delete, list_to_change which_list) {
                 }
 
                 scout = scout->nextSiblingPtr;
+            }
+
+            return 0;
+
+        case ZAPPERLIST:
+            if (scout == to_delete) { 
+                *head = scout->nextZapperSibling;
+                return 1;
+            }
+    
+             while (scout->nextZapperSibling != NULL) {
+                if (scout->nextZapperSibling == to_delete) {
+                    scout->nextZapperSibling = scout->nextZapperSibling->nextZapperSibling;
+                    return 1;
+                }
+
+                scout = scout->nextZapperSibling;
             }
 
             return 0;
@@ -615,6 +649,11 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
     switch (which_list) {
         case READYLIST:
              while (scout->nextProcPtr != NULL) {
+                
+                if (scout == to_add) {
+                    USLOSS_Console("THE HORSE HAS POUNCED ON YOU!");
+                    USLOSS_Halt(1);
+                }
                 scout = scout->nextProcPtr;
             }
 
@@ -623,6 +662,11 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
 
         case QUITLIST:
             while (scout->nextQuitSibling != NULL) {
+                
+                if (scout == to_add) {
+                    USLOSS_Console("THE HORSE HAS POUNCED ON YOU!");
+                    USLOSS_Halt(1);
+                }
                 scout = scout->nextQuitSibling;
             }
 
@@ -631,10 +675,28 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list) {
 
         case CHILDRENLIST:
             while (scout->nextSiblingPtr != NULL) {
+                
+                if (scout == to_add) {
+                    USLOSS_Console("THE HORSE HAS POUNCED ON YOU!");
+                    USLOSS_Halt(1);
+                }
                 scout = scout->nextSiblingPtr;
             }
 
             scout->nextSiblingPtr = to_add;
+            return 1;
+
+        case ZAPPERLIST:
+            while (scout->nextZapperSibling != NULL) {
+                
+                if (scout == to_add) {
+                    USLOSS_Console("THE HORSE HAS POUNCED ON YOU!");
+                    USLOSS_Halt(1);
+                }
+                scout = scout->nextZapperSibling;
+            }
+
+            scout->nextZapperSibling = to_add;
             return 1;
     }
 
@@ -721,9 +783,10 @@ int zap(int pid) {
     }
 
 
-    // check calling process is not zapped itself
-    if (Current->status == ZAPPED ) {
-        return -1;
+
+    if (process_to_zap->pid != pid_to_zap) {
+        USLOSS_Console("zap(): pid does not match with pid in process table.\n");
+        USLOSS_Halt(1);
     }
 
     
@@ -732,14 +795,27 @@ int zap(int pid) {
         return 0;
     }
 
+
+    // set the statuses
     process_to_zap->status = ZAPPED;
-    // TODO make the current process ZAPBLOCKED
-    // TODO once ZAPBLOCKED call dispatcher
-    // TODO add zapper to procPtr to see who the zapper of a process is
-    // TODO in quit do something similiar to join where you unblock the
-    //   process that has done the zapping and put yourself on its zapped procPtr
+    Current->status = ZAPBLOCKED;
 
 
+    // set the zapped pointer to the zapped process
+    Current->zappedProcPtr = process_to_zap;
+
+
+    // add current process to list of zappers, and delete Current off readylist
+    add_node(&process_to_zap->zappersProcPtr, Current, ZAPPERLIST);
+    delete_node(&ReadyList[Current->priority], Current, READYLIST);
+
+    // TODO not sure if this should be before or after dispatcher call
+    // check calling process is not zapped itself
+    if (Current->status == ZAPPED) {
+        return -1;
+    }
+
+    dispatcher();
 
     return 0;
 } /* zap */
@@ -747,7 +823,7 @@ int zap(int pid) {
 
 /* ------------------------------------------------------------------------
    Name - isZapped
-   Purpose -
+   Purpose - 
    Parameters -
    Returns -
    Side Effects -
