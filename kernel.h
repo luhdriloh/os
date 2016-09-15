@@ -47,11 +47,11 @@ union psrValues {
 
 
 /* Status of Process */
-#define UNUSED 1
-#define READY 2
-#define RUNNING 3
-#define QUIT 4
-#define ZAPPED 5
+#define UNUSED 0
+#define READY 1
+#define RUNNING 2
+#define QUIT 3
+#define ZAPPED 4
 
 /* Block Statuses */
 #define BLOCKED 10
