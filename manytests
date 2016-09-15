@@ -1,0 +1,9 @@
+for ((i = 0; i <= $1; i++))
+do
+    if (($i < 10))
+    then
+        ./dotest 0$i
+    else
+        ./dotest $i
+    fi
+done
