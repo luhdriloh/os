@@ -35,7 +35,7 @@
  * Enumeration to specify from which list to delete from
  */
 
-typedef enum {READYLIST, QUITLIST, CHILDRENLIST} list_to_change; 
+typedef enum {READYLIST, QUITLIST, CHILDRENLIST, ZAPPERLIST} list_to_change; 
 
 /* 
  * Function prototypes for this phase.
