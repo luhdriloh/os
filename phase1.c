@@ -27,7 +27,7 @@ int add_node(procPtr *head, procPtr to_add, list_to_change which_list);
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
-int debugflag = 0;
+int debugflag = 1;
 
 // the process table
 procStruct ProcTable[MAXPROC] = {};
@@ -172,10 +172,11 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
 
     // find an empty slot in the process table, and change PID
-    for (i = 0; i < 50; i++) {
+    for (i = 0; i < MAXPROC; i++) {
         
-        if (ProcTable[nextPid % 50].status == UNUSED) {
-            procSlot = nextPid % 50;
+        if (ProcTable[nextPid % MAXPROC].status == UNUSED) {
+            printf("in corretct spot\n");
+            procSlot = nextPid % MAXPROC;
             break;
         }
 
