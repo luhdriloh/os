@@ -10,11 +10,14 @@ struct procStruct {
    procPtr         parentProcPtr;     
    procPtr         childProcPtr;
    procPtr         quitChildProcPtr;
+   procPtr         zappedProcPtr;
+   procPtr         zappersProcPtr;
 
    /* Next in List Pointer */
    procPtr         nextProcPtr;       /* for readylist */
    procPtr         nextSiblingPtr;
    procPtr         nextQuitSibling;
+   procPtr         nextZapperSibling;
 
    char            name[MAXNAME];     /* process's name */
    char            startArg[MAXARG];  /* args passed to process */
@@ -44,14 +47,16 @@ union psrValues {
 
 
 /* Status of Process */
-#define UNUSED 0
-#define READY 1
-#define BLOCKED 2
+#define UNUSED 1
+#define READY 2
 #define RUNNING 3
 #define QUIT 4
-#define JOINBLOCKED 5
-#define ZAPPED 6
-#define ZAPBLOCKED 7
+#define ZAPPED 5
+
+/* Block Statuses */
+#define BLOCKED 10
+#define JOINBLOCKED 11
+#define ZAPBLOCKED 12
 
 #define NO_CURRENT_PROCESS NULL
 #define MINPRIORITY 5
