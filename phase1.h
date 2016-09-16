@@ -51,11 +51,15 @@ extern int   getpid(void);
 extern void  dumpProcesses(void);
 extern int   blockMe(int block_status);
 extern int   unblockProc(int pid);
+extern int   unblockRegularProc(int pid);
 extern int   readCurStartTime(void);
 extern void  timeSlice(void);
 extern void  dispatcher(void);
 extern int   readtime(void);
 extern void  clock_interrupt_handler(int dev, void *arg);
+extern int   check_user_mode();
+extern void  disableInterrupts();
+extern void  enableInterrupts();
 
 extern void  p1_fork(int pid);
 extern void  p1_quit(int pid);
