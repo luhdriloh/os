@@ -1,9 +1,9 @@
-for ((i = 0; i <= $1; i++))
+for ((i = $1; i <= $2; i++))
 do
     if (($i < 10))
     then
-        ./dotest 0$i
+        ./dotest 0$i | fgrep "Error: test"
     else
-        ./dotest $i
+        ./dotest $i | fgrep "Error: test"
     fi
 done
