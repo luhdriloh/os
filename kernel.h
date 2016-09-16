@@ -30,6 +30,7 @@ struct procStruct {
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    int             exit_status;
    int             zapped;
+   int             num_children;
    int             total_time_used;
    int             time_slice_start;
    /* other fields as needed... */
@@ -55,8 +56,8 @@ union psrValues {
 #define RUNNING 2
 #define QUIT 3
 #define BLOCKED  4
-#define JOINBLOCKED  5
-#define ZAPBLOCKED  6
+#define JOIN_BLOCKED  5
+#define ZAP_BLOCKED  6
 
 #define BlOCKMEBLOCKED 11
 

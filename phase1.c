@@ -230,6 +230,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     new_process->status = READY;
     new_process->exit_status = 0;
     new_process->zapped = 0;
+    new_process->num_children = 0;
     new_process->total_time_used = 0;
     new_process->time_slice_start = 0;
 
@@ -358,7 +359,7 @@ int join(int *status)
     }
     else {
         // no children have quit yet, you must join block the parent
-        Current->status = JOINBLOCKED;
+        Current->status = JOIN_BLOCKED;
     }
 
 
@@ -413,7 +414,7 @@ void quit(int status)
         add_node(&parent->quitChildProcPtr, toQuit, QUITLIST);
    	    
         // if parent is blocked child must unblock it
-   	    if (parent->status == JOINBLOCKED) {
+   	    if (parent->status == JOIN_BLOCKED) {
             unblockRegularProc(parent->pid);
         }
     }
@@ -530,7 +531,7 @@ static void checkDeadlock()
     for (i = 0; i < MAXPROC; i++) {
 
         // make sure all processes are done
-        if (ProcTable[i].priority != SENTINELPRIORITY && ProcTable[i].status == ZAPBLOCKED) {
+        if (ProcTable[i].priority != SENTINELPRIORITY && ProcTable[i].status == ZAP_BLOCKED) {
             USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel should be left. Halting...\n", ProcTable[i].pid);
             USLOSS_Halt(1);
         }
@@ -843,7 +844,7 @@ int zap(int pid) {
 
     // set the statuses
     process_to_zap->zapped = 1;
-    Current->status = ZAPBLOCKED;
+    Current->status = ZAP_BLOCKED;
 
 
     // set the zapped pointer to the zapped process
