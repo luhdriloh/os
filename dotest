@@ -1,0 +1,12 @@
+make test$1
+./test$1  2>&1 | fgrep ":" > log.txt
+
+test=$(cat testResults/test$1.txt | fgrep ":" > gtest.txt)
+DIFF=$(diff log.txt gtest.txt)
+
+if [ "$DIFF" == "" ]
+    then 
+        echo 'success'
+    else 
+        echo "Error: test$1"
+fi
