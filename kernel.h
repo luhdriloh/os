@@ -29,6 +29,9 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    int             exit_status;
+   int             zapped;
+   int             total_time_used;
+   int             time_slice_start;
    /* other fields as needed... */
 };
 
@@ -51,12 +54,11 @@ union psrValues {
 #define READY 1
 #define RUNNING 2
 #define QUIT 3
-#define ZAPPED 4
+#define BLOCKED  4
+#define JOINBLOCKED  5
+#define ZAPBLOCKED  6
 
-/* Block Statuses */
-#define BLOCKED 10
-#define JOINBLOCKED 11
-#define ZAPBLOCKED 12
+#define BlOCKMEBLOCKED 11
 
 #define NO_CURRENT_PROCESS NULL
 #define MINPRIORITY 5
